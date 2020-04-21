@@ -7,17 +7,13 @@ pygdbmi - Get Structured Output from GDB's Machine Interface
 <img src="https://travis-ci.org/cs01/pygdbmi.svg?branch=master" />
 </a>
 
-<a href="https://pypi.org/project/pygdbmi/">
-<img src="https://img.shields.io/badge/pypi-v0.9.0.2-blue.svg"/>
-</a>
+<a href="https://badge.fury.io/py/pygdbmi"><img src="https://badge.fury.io/py/pygdbmi.svg" alt="PyPI version" height="18"></a>
 
-<img src="https://img.shields.io/badge/python-2.7,3.4,3.5,3.6,pypy-blue.svg"/>
-<a href="https://github.com/ambv/black"><img src="https://img.shields.io/badge/code%20style-black-000000.svg" alt="Code style: black" /></a>
 </p>
 
-**Documentation** https://cs01.github.io/pygdbmi
+**Documentation** [https://cs01.github.io/pygdbmi](https://cs01.github.io/pygdbmi)
 
-**Source Code** https://github.com/cs01/pygdbmi
+**Source Code** [https://github.com/cs01/pygdbmi](https://github.com/cs01/pygdbmi)
 
 ---
 
@@ -159,11 +155,20 @@ The `type` is defined based on gdb's various [mi output record types](<(https://
 
 Documentation fixes, bug fixes, performance improvements, and functional improvements are welcome. You may want to create an issue before beginning work to make sure I am interested in merging it to the master branch.
 
-To develop, set up a new virtual environment, then clone this repo and run `pip install -e .[dev]`.
+pygdbmi uses [nox](https://github.com/theacodes/nox) for automation.
 
-Confirm unit tests are working with `make test`, then begin development.
+See available tasks with
 
-Update unit tests as necessary at `pygdbmi/tests/test_app.py`.
+```
+nox -l
+```
+
+Run tests and lint with
+
+```
+nox -s tests
+nox -s lint
+```
 
 ## Projects Using pygdbmi
 
@@ -174,4 +179,4 @@ Update unit tests as necessary at `pygdbmi/tests/test_app.py`.
 
 ## Authors
 
-`pygdbmi` was written by [Chad Smith](https://grassfedcode.com) with [contributions from the community](https://github.com/cs01/pygdbmi/graphs/contributors) for which the author is very grateful. Thanks especially to @mariusmue, @bobthekingofegypt, @mouuff, and @felipesere.
+`pygdbmi` was written by [Chad Smith](https://grassfedcode.com) with [contributions from the community](https://github.com/cs01/pygdbmi/graphs/contributors). Thanks especially to @mariusmue, @bobthekingofegypt, @mouuff, and @felipesere.

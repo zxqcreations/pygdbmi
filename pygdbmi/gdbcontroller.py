@@ -1,15 +1,20 @@
-"""GdbController class to programatically run gdb and get structured output"""
+"""This module defines the `GdbController` class
+which runs gdb as a subprocess and can write to it and read from it to get
+structured output.
+"""
 
-from distutils.spawn import find_executable
 import logging
 import os
-from pprint import pformat
-from pygdbmi import gdbmiparser
-import signal
 import select
+import signal
 import subprocess
 import sys
 import time
+from distutils.spawn import find_executable
+from pprint import pformat
+from typing import Union, List, Optional
+
+from pygdbmi import gdbmiparser
 
 try:  # py3
     from shlex import quote
@@ -22,7 +27,7 @@ DEFAULT_TIME_TO_CHECK_FOR_ADDITIONAL_OUTPUT_SEC = 0.2
 USING_WINDOWS = os.name == "nt"
 if USING_WINDOWS:
     import msvcrt
-    from ctypes import windll, byref, wintypes, WinError, POINTER
+    from ctypes import windll, byref, wintypes, WinError, POINTER  # type: ignore
     from ctypes.wintypes import HANDLE, DWORD, BOOL
 else:
     import fcntl
@@ -31,8 +36,6 @@ SIGNAL_NAME_TO_NUM = {}
 for n in dir(signal):
     if n.startswith("SIG") and "_" not in n:
         SIGNAL_NAME_TO_NUM[n.upper()] = getattr(signal, n)
-
-unicode = str if PYTHON3 else unicode  # noqa: F821
 
 
 class NoGdbProcessError(ValueError):
@@ -49,35 +52,35 @@ class GdbTimeoutError(ValueError):
 
 
 class GdbController:
-    """
-    Run gdb as a subprocess. Send commands and receive structured output.
-    Create new object, along with a gdb subprocess
-
-    Args:
-        gdb_path (str): Command to run in shell to spawn new gdb subprocess
-        gdb_args (list): Arguments to pass to shell when spawning new gdb subprocess
-        time_to_check_for_additional_output_sec (float): When parsing responses, wait this amout of time before exiting (exits before timeout is reached to save time). If <= 0, full timeout time is used.
-        rr (bool): Use the `rr replay` command instead of `gdb`. See rr-project.org for more info.
-        verbose (bool): Print verbose output if True
-    Returns:
-        New GdbController object
-    """
-
     def __init__(
         self,
-        gdb_path="gdb",
-        gdb_args=None,
+        gdb_path: str = "gdb",
+        gdb_args: Optional[List] = None,
         time_to_check_for_additional_output_sec=DEFAULT_TIME_TO_CHECK_FOR_ADDITIONAL_OUTPUT_SEC,
-        rr=False,
-        verbose=False,
+        rr: bool = False,
+        verbose: bool = False,
     ):
+        """
+        Run gdb as a subprocess. Send commands and receive structured output.
+        Create new object, along with a gdb subprocess
+
+        Args:
+            gdb_path: Command to run in shell to spawn new gdb subprocess
+            gdb_args: Arguments to pass to shell when spawning new gdb subprocess
+            time_to_check_for_additional_output_sec: When parsing responses, wait this amout of time before exiting (exits before timeout is reached to save time). If <= 0, full timeout time is used.
+            rr: Use the `rr replay` command instead of `gdb`. See rr-project.org for more info.
+            verbose: Print verbose output if True
+        Returns:
+            New GdbController object
+        """
+
         if gdb_args is None:
             default_gdb_args = ["--nx", "--quiet", "--interpreter=mi2"]
             gdb_args = default_gdb_args
 
         self.verbose = verbose
         self.abs_gdb_path = None  # abs path to gdb executable
-        self.cmd = []  # the shell command to run gdb
+        self.cmd = []  # type: List[str]
         self.time_to_check_for_additional_output_sec = (
             time_to_check_for_additional_output_sec
         )
@@ -107,7 +110,7 @@ class GdbController:
         self._attach_logger(verbose)
         self.spawn_new_gdb_subprocess()
 
-    def _attach_logger(self, verbose):
+    def _attach_logger(self, verbose: bool):
         handler = logging.StreamHandler()
         handler.setFormatter(logging.Formatter("%(message)s"))
         unique_number = time.time()
@@ -179,24 +182,24 @@ class GdbController:
 
     def write(
         self,
-        mi_cmd_to_write,
+        mi_cmd_to_write: Union[str, List[str]],
         timeout_sec=DEFAULT_GDB_TIMEOUT_SEC,
-        raise_error_on_timeout=True,
-        read_response=True,
+        raise_error_on_timeout: bool = True,
+        read_response: bool = True,
     ):
         """Write to gdb process. Block while parsing responses from gdb for a maximum of timeout_sec.
 
         Args:
-            mi_cmd_to_write (str or list): String to write to gdb. If list, it is joined by newlines.
-            timeout_sec (float): Maximum number of seconds to wait for response before exiting. Must be >= 0.
-            raise_error_on_timeout (bool): If read_response is True, raise error if no response is received
-            read_response (bool): Block and read response. If there is a separate thread running,
+            mi_cmd_to_write: String to write to gdb. If list, it is joined by newlines.
+            timeout_sec: Maximum number of seconds to wait for response before exiting. Must be >= 0.
+            raise_error_on_timeout: If read_response is True, raise error if no response is received
+            read_response: Block and read response. If there is a separate thread running,
             this can be false, and the reading thread read the output.
         Returns:
             List of parsed gdb responses if read_response is True, otherwise []
         Raises:
-            NoGdbProcessError if there is no gdb subprocess running
-            TypeError if mi_cmd_to_write is not valid
+            NoGdbProcessError: if there is no gdb subprocess running
+            TypeError: if mi_cmd_to_write is not valid
         """
         self.verify_valid_gdb_subprocess()
         if timeout_sec < 0:
@@ -204,10 +207,10 @@ class GdbController:
             timeout_sec = 0
 
         # Ensure proper type of the mi command
-        if type(mi_cmd_to_write) in [str, unicode]:
-            pass
-        elif type(mi_cmd_to_write) == list:
-            mi_cmd_to_write = "\n".join(mi_cmd_to_write)
+        if isinstance(mi_cmd_to_write, str):
+            mi_cmd_to_write_str = mi_cmd_to_write
+        elif isinstance(mi_cmd_to_write, list):
+            mi_cmd_to_write_str = "\n".join(mi_cmd_to_write)
         else:
             raise TypeError(
                 "The gdb mi command must a be str or list. Got "
@@ -216,10 +219,10 @@ class GdbController:
 
         self.logger.debug("writing: %s", mi_cmd_to_write)
 
-        if not mi_cmd_to_write.endswith("\n"):
-            mi_cmd_to_write_nl = mi_cmd_to_write + "\n"
+        if not mi_cmd_to_write_str.endswith("\n"):
+            mi_cmd_to_write_nl = mi_cmd_to_write_str + "\n"
         else:
-            mi_cmd_to_write_nl = mi_cmd_to_write
+            mi_cmd_to_write_nl = mi_cmd_to_write_str
 
         if USING_WINDOWS:
             # select not implemented in windows for pipes
@@ -230,10 +233,12 @@ class GdbController:
         for fileno in outputready:
             if fileno == self.stdin_fileno:
                 # ready to write
-                self.gdb_process.stdin.write(mi_cmd_to_write_nl.encode())
+                self.gdb_process.stdin.write(  # type: ignore
+                    mi_cmd_to_write_nl.encode()
+                )
                 # don't forget to flush for Python3, otherwise gdb won't realize there is data
                 # to evaluate, and we won't get a response
-                self.gdb_process.stdin.flush()
+                self.gdb_process.stdin.flush()  # type: ignore
             else:
                 self.logger.error("got unexpected fileno %d" % fileno)
 
@@ -246,24 +251,23 @@ class GdbController:
             return []
 
     def get_gdb_response(
-        self, timeout_sec=DEFAULT_GDB_TIMEOUT_SEC, raise_error_on_timeout=True
+        self, timeout_sec: float = DEFAULT_GDB_TIMEOUT_SEC, raise_error_on_timeout=True
     ):
         """Get response from GDB, and block while doing so. If GDB does not have any response ready to be read
         by timeout_sec, an exception is raised.
 
         Args:
-            timeout_sec (float): Maximum time to wait for reponse. Must be >= 0. Will return after
-            raise_error_on_timeout (bool): Whether an exception should be raised if no response was found
-            after timeout_sec
+            timeout_sec: Maximum time to wait for reponse. Must be >= 0. Will return after
+            raise_error_on_timeout: Whether an exception should be raised if no response was found after timeout_sec
 
         Returns:
             List of parsed GDB responses, returned from gdbmiparser.parse_response, with the
             additional key 'stream' which is either 'stdout' or 'stderr'
 
         Raises:
-            GdbTimeoutError if response is not received within timeout_sec
-            ValueError if select returned unexpected file number
-            NoGdbProcessError if there is no gdb subprocess running
+            GdbTimeoutError: if response is not received within timeout_sec
+            ValueError: if select returned unexpected file number
+            NoGdbProcessError: if there is no gdb subprocess running
         """
 
         self.verify_valid_gdb_subprocess()
@@ -403,12 +407,16 @@ class GdbController:
 
     def send_signal_to_gdb(self, signal_input):
         """Send signal name (case insensitive) or number to gdb subprocess
-        gdbmi.send_signal_to_gdb(2)  # valid
-        gdbmi.send_signal_to_gdb('sigint')  # also valid
-        gdbmi.send_signal_to_gdb('SIGINT')  # also valid
+        These are all valid ways to call this method:
+        ```
+        gdbmi.send_signal_to_gdb(2)
+        gdbmi.send_signal_to_gdb('sigint')
+        gdbmi.send_signal_to_gdb('SIGINT')
+        ```
 
-        raises ValueError if signal_input is invalie
-        raises NoGdbProcessError if there is no gdb process to send a signal to
+        raises:
+            ValueError: if signal_input is invalid
+            NoGdbProcessError: if there is no gdb process to send a signal to
         """
         try:
             signal = int(signal_input)
@@ -431,9 +439,8 @@ class GdbController:
         """Send SIGINT (interrupt signal) to the gdb subprocess"""
         self.send_signal_to_gdb("SIGINT")
 
-    def exit(self):
-        """Terminate gdb process
-        Returns: None"""
+    def exit(self) -> None:
+        """Terminate gdb process"""
         if self.gdb_process:
             self.gdb_process.terminate()
             self.gdb_process.communicate()
